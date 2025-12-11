@@ -1,7 +1,11 @@
 ---
 galaxy_info:
   author: S. Mannem
-  description: CTO
+  description: |
+    Nagios is a tool to monitor endpoints, such as PostgreSQL systems.
+    This role installs postgres-nrpe and additionally adds configuration to configure endpoint monitoring.
+    And it can enable endpoint monitoring on a cental Nagios monitoring system.
+
   company: Nibble-IT
 
   # If the issue tracker for your role is not on github, uncomment the

@@ -1,5 +1,7 @@
 ---
 galaxy_info:
+  namespace: pgvillage
+  role_name: nagios
   author: S. Mannem
   description: |
     Nagios is a tool to monitor endpoints, such as PostgreSQL systems.

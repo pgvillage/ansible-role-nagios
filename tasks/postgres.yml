@@ -13,7 +13,7 @@
   run_once: true
 
 - name: Install dependencies
-  ansible.builtin.dnf:
+  ansible.builtin.package:
     name: "{{ nagios_packages }}"
     state: "{{ nagios_package_state }}"
 

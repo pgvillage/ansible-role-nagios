@@ -5,18 +5,18 @@
   register: nagios_semodule_list
   changed_when: false
   when:
-    - ansible_os_family is defined
-    - ansible_os_family == 'RedHat'
-    - ansible_selinux.status is defined
-    - ansible_selinux.status != 'disabled'
+    - ansible_facts.os_family is defined
+    - ansible_facts.os_family == 'RedHat'
+    - ansible_facts.selinux.status is defined
+    - ansible_facts.selinux.status != 'disabled'
 
 - name: Configure se-linux
   ansible.builtin.include_tasks: "selinux.yml"
   when:
-    - ansible_os_family is defined
-    - ansible_os_family == 'RedHat'
-    - ansible_selinux.status is defined
-    - ansible_selinux.status != 'disabled'
+    - ansible_facts.os_family is defined
+    - ansible_facts.os_family == 'RedHat'
+    - ansible_facts.selinux.status is defined
+    - ansible_facts.selinux.status != 'disabled'
     - "'my-nrpe' not in nagios_semodule_list.stdout_lines"
 
 - name: Create postgres user for nrpe

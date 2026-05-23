@@ -5,6 +5,7 @@
 # Note that  | percent is a custom jinja filter which can apply a percentage, a minimum and round to n digits
 # See roles/nagios/filter_plugins/core.py for the definition
 
+nagios_enabled: true
 nagios_package_state: present
 
 nagios_packages:

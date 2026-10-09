@@ -3,77 +3,126 @@
 #
 #
 # Note that  | percent is a custom jinja filter which can apply a percentage, a minimum and round to n digits
-# See roles/nagios/filter_plugins/core.py for the definition
+# See filter_plugins/core.py for the definition
+# Likewise | human converts a number of bytes into a human readable value (e.g. 1G)
 
+# Enable or disable this role. When false, no tasks are run (e.g. on platforms where nrpe is unavailable)
 nagios_enabled: true
+# State of the packages in nagios_packages (e.g. present or latest)
 nagios_package_state: present
 
+# Packages to install on the PostgreSQL servers
 nagios_packages:
   - nrpe
   - check_postgres
 
+# Folder where the custom nrpe scripts and the check_postgres.pl symlinks are deployed
 nagios_scripts_folder: /opt/nagios/nrpe
 
+# Folder where the nrpe command configuration files are written
 nagios_config_folder: /etc/nrpe.d/
+# check_procs: OS user running the PostgreSQL processes
 nagios_running_postgresql_user: postgres
+# check_procs: argument string to search for in the process list
 nagios_running_postgresql_search: postgres
+# check_procs: warning range for the number of running PostgreSQL processes
 nagios_running_postgresql_warning: '7:{{ nagios_connections_value }}'
+# check_procs: critical range for the number of running PostgreSQL processes
 nagios_running_postgresql_critical: '1:{{ nagios_connections_value + 100 }}'
 
+# PostgreSQL user (created as SUPERUSER) used by nrpe to connect, and owner of the nrpe config files
 nagios_nrpe_user: nrpe
+# Group owner of the nrpe config files
 nagios_nrpe_group: '{{ nagios_nrpe_user }}'
 
+# Expected maximum number of locks; warning and critical are derived as a percentage of this value
 nagios_locks_value: 800
+# Warning threshold for the number of locks (default 50% of nagios_locks_value)
 nagios_locks_warning: '{{ nagios_locks_value | percent(50) }}'
+# Critical threshold for the number of locks (default 75% of nagios_locks_value)
 nagios_locks_critical: '{{ nagios_locks_value | percent(75) }}'
 
+# Maximum number of connections (should match max_connections); used for several derived thresholds
 nagios_connections_value: 100
+# Warning threshold for the number of connections (default 70% of nagios_connections_value)
 nagios_connections_warning: '{{ nagios_connections_value | percent(70) }}'
+# Critical threshold for the number of connections (default 80% of nagios_connections_value)
 nagios_connections_critical: '{{ nagios_connections_value | percent(80) }}'
 
+# Expected PostgreSQL major version (check_postgres_version)
 nagios_pg_version: 17
 
+# Mount point of the WAL directory, used to determine the available space for WAL files
 nagios_wal_dir_mp: '/'
 
+# Internal: dict of mount point => available bytes, derived from the 'df' output registered by the role
+# Normally there is no need to change this
 nagios_mp_sizes: |
   {{
     nagios_mp_sizes_out.results |
     items2dict(key_name='item', value_name='stdout')
   }}
 
+# Available space (bytes) on the WAL mount point (derived)
 nagios_wal_dir_mp_size: '{{ nagios_mp_sizes[nagios_wal_dir_mp] }}'
+# Percentage of the WAL mount point that may be filled with WAL files before warning
 nagios_max_wal_size_warning_percent: 65
+# Percentage of the WAL mount point that may be filled with WAL files before critical
 nagios_max_wal_size_critical_percent: 75
+# Number of 16MB WAL files that fit on the WAL mount point (derived)
 nagios_wal_files_value: '{{ nagios_wal_dir_mp_size | int / 16777216 }}'
+# Warning threshold for the number of WAL files (minimum 10)
 nagios_wal_files_warning: '{{ nagios_wal_files_value | percent(nagios_max_wal_size_warning_percent, 10) }}'
+# Critical threshold for the number of WAL files (minimum 100)
 nagios_wal_files_critical: '{{ nagios_wal_files_value | percent(nagios_max_wal_size_critical_percent, 100) }}'
 
+# Mount point of the data directory, used to derive size thresholds
 nagios_data_dir_mp: '/'
+# Available space (bytes) on the data mount point (derived)
 nagios_data_dir_mp_size: '{{ nagios_mp_sizes[nagios_data_dir_mp] }}'
+# Reference size (bytes) for the database size check
 nagios_db_size_value: '{{ nagios_data_dir_mp_size }}'
+# Warning threshold for database size (default 80% of nagios_db_size_value)
 nagios_db_size_warning: '{{ nagios_db_size_value | percent(80) | human }}'
+# Critical threshold for database size (default 90% of nagios_db_size_value)
 nagios_db_size_critical: '{{ nagios_db_size_value | percent(90) | human }}'
 
+# Reference size (bytes) for the relation size check
 nagios_relation_size_value: '{{ nagios_data_dir_mp_size }}'
+# Warning threshold for relation size (default 70% of nagios_relation_size_value)
 nagios_relation_size_warning: '{{ nagios_relation_size_value | percent(70) | human }}'
+# Critical threshold for relation size (default 80% of nagios_relation_size_value)
 nagios_relation_size_critical: '{{ nagios_relation_size_value | percent(80) | human }}'
 
+# Reference size (bytes) for the table size check
 nagios_table_size_value: '{{ nagios_data_dir_mp_size }}'
+# Warning threshold for table size (default 70% of nagios_table_size_value)
 nagios_table_size_warning: '{{ nagios_table_size_value | percent(70) | human }}'
+# Critical threshold for table size (default 80% of nagios_table_size_value)
 nagios_table_size_critical: '{{ nagios_table_size_value | percent(80) | human }}'
 
+# Reference size (bytes) for the index size check
 nagios_idx_size_value: '{{ nagios_data_dir_mp_size }}'
+# Warning threshold for index size (default 20% of nagios_idx_size_value)
 nagios_idx_size_warning: '{{ nagios_idx_size_value | percent(20) | human }}'
+# Critical threshold for index size (default 25% of nagios_idx_size_value)
 nagios_idx_size_critical: '{{ nagios_idx_size_value | percent(25) | human }}'
 
+# Critical threshold (seconds) for the longest running transaction; warning is half of this
 nagios_txn_time: 1
 
+# Warning threshold for the number of WAL files ready to be archived; critical is twice this
 nagios_archive_ready: 15
+# Critical percentage towards autovacuum_freeze_max_age; warning is 2 * value - 100
 nagios_autovac_freeze: 98
 
+# Maximum number of backends (should match max_connections)
 nagios_backends_value: 100
+# Percentage of nagios_backends_value at which the backends check goes critical
 nagios_backends_alert_percent: 95
+# Warning threshold for backends (2 * alert percent - 100 of nagios_backends_value)
 nagios_backends_warning: '{{ nagios_backends_value | percent(2 * nagios_backends_alert_percent - 100) }}'
+# Critical threshold for backends (alert percent of nagios_backends_value)
 nagios_backends_critical: '{{ nagios_backends_value | percent(nagios_backends_alert_percent) }}'
 
 # Warning when table size is more then 125% of expected table size (data is 80% or less of relation size)
@@ -84,19 +133,37 @@ nagios_bloat_warning: '125% and 1G'
 # But only for relations larger dan 5G
 nagios_bloat_critical: '150% and 5G'
 
+# Critical threshold (percent) for the commit ratio; warning is twice this
 nagios_commitratio: 15
 
+# Warning threshold for the number of disabled triggers; critical is twice this
 nagios_disabled_triggers: 1
+# Threshold (percent) for the buffer cache hit ratio; 0 effectively disables this check
 nagios_hitratio: 0
+# Warning threshold for the number of prepared transactions; critical is twice this
 nagios_prepared_txns: '{{ nagios_connections_value }}'
+# Critical percentage of used sequence space; warning is 2 * value - 100
 nagios_sequence_space: 90
+# Critical threshold (seconds) for clock difference between server and database; warning is half of this
 nagios_timesync: 5
+# Base value for transaction id wraparound thresholds
 nagios_txn_wraparound: 200000000
+# Warning threshold for transaction id wraparound (default 120% of nagios_txn_wraparound)
 nagios_txn_wraparound_warning: '{{ nagios_txn_wraparound | percent(120) }}'
+# Critical threshold for transaction id wraparound (default 150% of nagios_txn_wraparound)
 nagios_txn_wraparound_criticial: '{{ nagios_txn_wraparound | percent(150) }}'
+# Warning threshold for disk space usage
 nagios_disk_space_warning: '80%'
+# Critical threshold for disk space usage
 nagios_disk_space_critical: '90%'
 
+# All checks to configure in nrpe, grouped per check type. Every group key maps to a template
+# (templates/<group>.j2) which is rendered to <nagios_config_folder>/<group>.cfg:
+# - multi_check: checks run against all databases with pg_multi_db_checks.sh (warning / critical)
+# - check_postgres: check_postgres.pl actions, called through a symlink named after the check (warning / critical)
+# - service_check: systemd service checks using check_service_wrapper.sh (service)
+# - proces_check: check_procs process checks (user / search / warning / critical)
+# All checks are also registered as services on the central nagios servers (see nagios_servers)
 nagios_checks:
   multi_check:
     check_postgres_last_analyze:
@@ -187,8 +254,15 @@ nagios_checks:
       warning: '{{ nagios_running_postgresql_warning }}'
       critical: '{{ nagios_running_postgresql_critical }}'
 
+# Names of the symlinks to /usr/bin/check_postgres.pl created in nagios_scripts_folder (derived from nagios_checks)
 nagios_check_postgres_links: '{{ nagios_checks.multi_check.keys() | list + nagios_checks.check_postgres.keys() | list }}'
 
+# Central nagios servers on which host and service definitions for this host are created.
+# For every server:
+# - hostname: server to delegate to
+# - path: folder in which <inventory_hostname>.cfg and <inventory_hostname>-custom.cfg are written
+# - enabled: when true the config is created, when false the custom config is removed
+# - hostgroups: list of hostgroups this host is added to
 nagios_servers: []
 #  - hostname: nagios1.example.com
 #    path: /opt/nagios/etc/host.cfg.d
@@ -200,6 +274,7 @@ nagios_servers: []
 #    - virtualserver
 #    - postgres_dba
 
+# SELinux modules (files/<name>.te) to compile and install on RedHat family systems with SELinux enabled
 nagios_selinux_modules:
   - my-nrpe
   - my-check-postgres

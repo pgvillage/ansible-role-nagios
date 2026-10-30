@@ -17,6 +17,25 @@
     name: "{{ nagios_packages }}"
     state: "{{ nagios_package_state }}"
 
+- name: Ensure NRPE operating system group exists
+  become: true
+  become_user: root
+  ansible.builtin.group:
+    name: "{{ nagios_nrpe_group }}"
+    system: true
+    state: present
+
+- name: Ensure NRPE operating system user exists
+  become: true
+  become_user: root
+  ansible.builtin.user:
+    name: "{{ nagios_nrpe_user }}"
+    group: "{{ nagios_nrpe_group }}"
+    system: true
+    create_home: false
+    shell: /sbin/nologin
+    state: present
+
 - name: Get size of data dir in bytes
   ansible.builtin.shell:
     cmd: |

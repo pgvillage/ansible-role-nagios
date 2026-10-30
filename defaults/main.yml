@@ -33,7 +33,7 @@ nagios_running_postgresql_critical: '1:{{ nagios_connections_value + 100 }}'
 # PostgreSQL user (created as SUPERUSER) used by nrpe to connect, and owner of the nrpe config files.
 # Also created as a system OS user (no home, /sbin/nologin) when it does not exist yet; existing accounts are left as is
 nagios_nrpe_user: nrpe
-# Group owner of the nrpe config files; created as a system OS group when missing
+# Group owner of the nrpe config files; created as a system OS group together with nagios_nrpe_user
 nagios_nrpe_group: '{{ nagios_nrpe_user }}'
 
 # Expected maximum number of locks; warning and critical are derived as a percentage of this value

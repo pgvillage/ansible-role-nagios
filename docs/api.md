@@ -30,8 +30,8 @@ Many thresholds are derived using filters shipped in [filter_plugins/core.py](..
 | `nagios_packages` | `[nrpe, check_postgres]` | Packages to install on the PostgreSQL servers. |
 | `nagios_scripts_folder` | `/opt/nagios/nrpe` | Folder where the custom nrpe scripts and the `check_postgres.pl` symlinks are deployed. |
 | `nagios_config_folder` | `/etc/nrpe.d/` | Folder where the nrpe command configuration files are written. |
-| `nagios_nrpe_user` | `nrpe` | PostgreSQL user (created as SUPERUSER) used by nrpe to connect, and owner of the nrpe config files. |
-| `nagios_nrpe_group` | `{{ nagios_nrpe_user }}` | Group owner of the nrpe config files. |
+| `nagios_nrpe_user` | `nrpe` | PostgreSQL user (created as SUPERUSER) used by nrpe to connect, and owner of the nrpe config files. Also created as a system OS user (no home, shell `/sbin/nologin`) when it does not exist yet; an existing account is left unchanged. |
+| `nagios_nrpe_group` | `{{ nagios_nrpe_user }}` | Group owner of the nrpe config files. Created as a system OS group together with `nagios_nrpe_user`, only when that user does not exist yet. |
 | `nagios_selinux_modules` | `[my-nrpe, my-check-postgres]` | SELinux modules (`files/<name>.te`) to compile and install on RedHat family systems with SELinux enabled. |
 
 ## Running PostgreSQL processes (check_procs)

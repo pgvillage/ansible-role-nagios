@@ -18,16 +18,19 @@
     state: "{{ nagios_package_state }}"
 
 - name: Ensure NRPE operating system group exists
-  become: true
-  become_user: root
   ansible.builtin.group:
     name: "{{ nagios_nrpe_group }}"
     system: true
     state: present
 
-- name: Ensure NRPE operating system user exists
-  become: true
-  become_user: root
+# Only create the user when it is missing, so an existing account (e.g. postgres) keeps its shell and primary group
+- name: Check whether the NRPE operating system user exists
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ nagios_nrpe_user }}"
+    fail_key: false
+
+- name: Create NRPE operating system user
   ansible.builtin.user:
     name: "{{ nagios_nrpe_user }}"
     group: "{{ nagios_nrpe_group }}"
@@ -35,6 +38,7 @@
     create_home: false
     shell: /sbin/nologin
     state: present
+  when: ansible_facts.getent_passwd[nagios_nrpe_user] is none
 
 - name: Get size of data dir in bytes
   ansible.builtin.shell:

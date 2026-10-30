@@ -2,5 +2,11 @@
 
 # service_checks
 {% for check_name, check in item.value.items() %}
+{% if nagios_clusters | length > 0 and check.service in ['stolon-keeper', 'stolon-proxy', 'stolon-sentinel'] %}
+{% for cluster_name in __nagios_clusters %}
+command[{{ check_name }}_{{ cluster_name }}] = {{ nagios_scripts_folder }}/check_service_wrapper.sh -s {{ (check.service ~ '@' ~ cluster_name) | quote }}
+{% endfor %}
+{% else %}
 command[{{ check_name }}] = {{ nagios_scripts_folder }}/check_service_wrapper.sh -s {{ check.service }}
+{% endif %}
 {% endfor %}

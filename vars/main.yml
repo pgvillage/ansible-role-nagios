@@ -1,2 +1,5 @@
 ---
 # vars file for nagios
+
+# An empty target name preserves the legacy NRPE command identifiers.
+__nagios_clusters: "{{ nagios_clusters if nagios_clusters | length > 0 else {'': {'service': nagios_pg_service, 'host': nagios_pg_host, 'port': nagios_pg_port, 'ssl_mode': nagios_pg_ssl_mode}} }}"

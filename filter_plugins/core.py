@@ -1,5 +1,6 @@
 import math
 import re
+from ansible.errors import AnsibleFilterError
 
 millnames = ['','k','M','G','T', 'P']
 
@@ -35,9 +36,30 @@ def percent(n, f=100, minimum=0, digits=0):
         return minimum
     return '{0:.{1}f}'.format(result, digits)
 
+def nagios_stolon_clusters(clusters):
+    """Translate Stolon definitions into named local monitoring targets."""
+    if not isinstance(clusters, dict):
+        raise AnsibleFilterError("stolon_clusters must be a dictionary")
+    targets = {}
+    for name, cluster in clusters.items():
+        try:
+            port = cluster["sysconfig"]["stkeeper"]["pg_port"]
+        except (KeyError, TypeError):
+            raise AnsibleFilterError(
+                "Stolon cluster {!r} must define sysconfig.stkeeper.pg_port".format(name)
+            )
+        targets[name] = {
+            "service": "{}-master".format(name),
+            "port": port,
+            "ssl_mode": "verify-full",
+        }
+    return targets
+
+
 class FilterModule(object):
     def filters(self):
         return {
+            'nagios_stolon_clusters': nagios_stolon_clusters,
             'human': human,
             'unhuman': unhuman,
             'percent': percent

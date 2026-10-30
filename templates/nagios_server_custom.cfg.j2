@@ -1,13 +1,22 @@
 # Managed by Ansible (https://github.com/pgvillage/pgvillage)
 
-{% for _, chapter in nagios_checks.items() %}
-{% for check in chapter.keys() %}
+{% macro service(check_name) %}
 define service {
         use                  dba-service
         host_name            {{ inventory_hostname }}
-        service_description  {{ check }}
-        check_command        check_nrpe_ssl!{{ check }}
+        service_description  {{ check_name }}
+        check_command        check_nrpe_ssl!{{ check_name }}
 }
 
+{% endmacro %}
+{% for group, chapter in nagios_checks.items() %}
+{% for check_name, check in chapter.items() %}
+{% if group in ['multi_check', 'check_postgres'] or (group == 'service_check' and nagios_clusters | length > 0 and check.service in ['stolon-keeper', 'stolon-proxy', 'stolon-sentinel']) %}
+{% for cluster_name in __nagios_clusters %}
+{{ service(check_name ~ ('_' ~ cluster_name if cluster_name else '')) }}
+{% endfor %}
+{% else %}
+{{ service(check_name) }}
+{% endif %}
 {% endfor %}
 {% endfor %}

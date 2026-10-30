@@ -1,0 +1,31 @@
+---
+- name: Render NRPE command groups
+  ansible.builtin.set_fact:
+    nagios_test_configs: "{{ nagios_test_configs | default({}) | combine({item.key: lookup('template', role_path ~ '/templates/' ~ item.key ~ '.j2')}) }}"
+  loop: "{{ nagios_checks | dict2items }}"
+
+- name: Capture the actual administrative task parameters per cluster
+  ansible.builtin.set_fact:
+    nagios_test_users: >-
+      {{ nagios_test_users | default([]) + [{
+        'cluster': nagios_cluster.key,
+        'service': nagios_test_user_task.environment.PGSERVICE,
+        'port': nagios_test_user_task['community.postgresql.postgresql_user'].login_port | int,
+        'ssl_mode': nagios_test_user_task['community.postgresql.postgresql_user'].ssl_mode,
+        'name': nagios_test_user_task['community.postgresql.postgresql_user'].name,
+        'run_once': nagios_test_user_task.run_once
+      }] }}
+  loop: "{{ __nagios_clusters | dict2items }}"
+  loop_control:
+    loop_var: nagios_cluster
+
+- name: Save rendered configuration and connection parameters
+  ansible.builtin.copy:
+    dest: "{{ nagios_test_output }}"
+    mode: "0600"
+    content: >-
+      {{ {
+        'configs': nagios_test_configs,
+        'central': lookup('template', role_path ~ '/templates/nagios_server_custom.cfg.j2'),
+        'users': nagios_test_users
+      } | to_json }}

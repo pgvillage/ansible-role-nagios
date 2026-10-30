@@ -1,6 +1,8 @@
 # Ansible managed (ansible_postgres)
 
 # check_postgres
+{% for cluster_name, cluster_config in __nagios_clusters.items() %}
 {% for check_name, check in item.value.items() %}
-command[{{ check_name }}] = {{ nagios_scripts_folder }}/{{ check_name }} -H /tmp -w '{{ check.warning }}' -c '{{ check.critical }}' -u {{ nagios_nrpe_user }}
+command[{{ check_name }}{{ '_' ~ cluster_name if cluster_name else '' }}] = {{ nagios_scripts_folder }}/{{ check_name }} -H {{ cluster_config.host | default(nagios_pg_host) | quote }} -p {{ cluster_config.port | default(nagios_pg_port) }} -w '{{ check.warning }}' -c '{{ check.critical }}' -u {{ nagios_nrpe_user | quote }}
+{% endfor %}
 {% endfor %}

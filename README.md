@@ -18,6 +18,27 @@ Please see the [API documentation](docs/api.md) for a description of all variabl
 Defaults are defined in [defaults/main.yml](defaults/main.yml).
 
 
+Multiple PostgreSQL instances
+----------------------------
+
+The role discovers `stolon_clusters` when `stolon_multicluster` is enabled.
+It creates nrpe in each cluster through `<cluster>-master`, and generates local
+database and Stolon service checks with cluster-specific names and ports.
+Central Nagios definitions use the same command names.
+
+You can also supply `nagios_clusters` explicitly or configure a single-instance
+connection with `nagios_pg_service`, `nagios_pg_host` and `nagios_pg_port`.
+See [PostgreSQL instances](docs/api.md#postgresql-instances) for examples and
+authentication requirements.
+
+Validation
+----------
+
+Run `python3 -m unittest discover -s tests -v`. The tests require Ansible and
+PyYAML. They render configuration and exercise the multi-database wrapper using
+temporary files and mock commands; they do not connect to PostgreSQL or change
+services.
+
 Dependencies
 ------------
 

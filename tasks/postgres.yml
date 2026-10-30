@@ -1,6 +1,20 @@
 ---
 # tasks file for nagios
 
+- name: Validate PostgreSQL monitoring targets
+  ansible.builtin.assert:
+    that:
+      - nagios_clusters is mapping
+      - nagios_clusters.keys() | reject('match', '^[A-Za-z0-9_-]+$') | list | length == 0
+      - nagios_cluster.value is mapping
+      - nagios_cluster.value.port | default(nagios_pg_port) | int > 0
+      - nagios_cluster.value.port | default(nagios_pg_port) | int < 65536
+    fail_msg: Nagios cluster targets need valid names and PostgreSQL ports.
+  loop: "{{ __nagios_clusters | dict2items }}"
+  loop_control:
+    loop_var: nagios_cluster
+    label: "{{ nagios_cluster.key | default('default', true) }}"
+
 - name: Create an nrpe user in Postgres
   become: true
   become_user: "postgres"
@@ -8,8 +22,14 @@
     name: "{{ nagios_nrpe_user }}"
     state: present
     role_attr_flags: SUPERUSER
+    login_port: "{{ nagios_cluster.value.port | default(nagios_pg_port) }}"
+    ssl_mode: "{{ nagios_cluster.value.ssl_mode | default(nagios_pg_ssl_mode) }}"
   environment:
-    PGSERVICE: master
+    PGSERVICE: "{{ nagios_cluster.value.service | default(nagios_cluster.key ~ '-master') }}"
+  loop: "{{ __nagios_clusters | dict2items }}"
+  loop_control:
+    loop_var: nagios_cluster
+    label: "{{ nagios_cluster.key | default('default', true) }}"
   run_once: true
 
 - name: Install dependencies

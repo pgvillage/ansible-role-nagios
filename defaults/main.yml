@@ -35,6 +35,17 @@ nagios_nrpe_user: nrpe
 # Group owner of the nrpe config files
 nagios_nrpe_group: '{{ nagios_nrpe_user }}'
 
+# PostgreSQL connection used to create nrpe in a single-instance deployment.
+nagios_pg_service: master
+nagios_pg_host: /tmp
+nagios_pg_port: 5432
+nagios_pg_ssl_mode: prefer
+
+# Named monitoring targets, each with service, host, port and ssl_mode overrides.
+# Discover PgVillage/Stolon multicluster definitions automatically. An empty
+# dictionary retains the legacy single-instance command names and connection.
+nagios_clusters: "{{ stolon_clusters | default({}) | nagios_stolon_clusters if stolon_multicluster | default(false) | bool else {} }}"
+
 # Expected maximum number of locks; warning and critical are derived as a percentage of this value
 nagios_locks_value: 800
 # Warning threshold for the number of locks (default 50% of nagios_locks_value)

@@ -23,6 +23,8 @@ function show_usage
 export PGHOST=${PGHOST:-/tmp}
 export PGDATABASE=${PGDATABASE:-postgres}
 export PGUSER=${PGUSER:-nrpe}
+export PGPORT=${PGPORT:-5432}
+check_script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 # Controle op uit te voeren postgres check :
 #----------------------------------------------------------------------------------------------------------------------------------------
@@ -112,7 +114,7 @@ export wurst_db="ALL db's check OK !"
 #----------------------------------------------------------------------------------------------------------------------------------------
 for db in ${db_list[@]} ; do
    # export chck=$(sudo -iu postgres /opt/nagios/nrpe/$pg_check_name -H $PGHOST --db=$db ${opts_array[@]}\
-   export chck=$(/opt/nagios/nrpe/$pg_check_name -H $PGHOST --db=$db ${opts_array[@]}\
+   export chck=$("$check_script_dir/$pg_check_name" -H "$PGHOST" -p "$PGPORT" -u "$PGUSER" --db="$db" "${opts_array[@]}"\
       |sed -n -s "s/^\(..*\)\(OK\|WARNING\|CRITICAL\|UNKNOWN\)[^\"]*\([^ ]*\).*$/$pg_check_name \2: DB \3/p";);
 
    ch=$(echo $chck|sed -n -e 's/^\(.*\)\(OK\|WARNING\|CRITICAL\|UNKNOWN\)[:]\(.*\)$/\2/p')

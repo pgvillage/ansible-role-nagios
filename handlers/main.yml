@@ -9,3 +9,10 @@
   loop: "{{ nagios_servers }}"
   loop_control:
     label: "{{ item.hostname }}"
+
+- name: Restart nrpe
+  become: true
+  ansible.builtin.systemd:
+    name: nrpe.service
+    state: restarted
+    daemon_reload: true

@@ -11,10 +11,12 @@ nagios_enabled: true
 # State of the packages in nagios_packages (e.g. present or latest)
 nagios_package_state: present
 
-# Packages to install on the PostgreSQL servers
+# Packages to install on the PostgreSQL servers. check_postgres.pl needs Time::HiRes, which the EPEL package doesn't
+# pull in
 nagios_packages:
   - nrpe
   - check_postgres
+  - perl-Time-HiRes
 
 # Folder where the custom nrpe scripts and the check_postgres.pl symlinks are deployed
 nagios_scripts_folder: /opt/nagios/nrpe
@@ -69,10 +71,10 @@ nagios_connections_critical: '{{ nagios_connections_value | percent(80) }}'
 # Expected PostgreSQL major version (check_postgres_version)
 nagios_pg_version: 17
 
-# Mount point of the WAL directory, used to determine the available space for WAL files
+# Mount point of the WAL directory, used to determine the size of its file system
 nagios_wal_dir_mp: '/'
 
-# Internal: dict of mount point => available bytes, derived from the 'df' output registered by the role
+# Internal: dict of mount point => file system size in bytes, derived from the 'df' output registered by the role
 # Normally there is no need to change this
 nagios_mp_sizes: |
   {{
@@ -80,7 +82,7 @@ nagios_mp_sizes: |
     items2dict(key_name='item', value_name='stdout')
   }}
 
-# Available space (bytes) on the WAL mount point (derived)
+# Size (bytes) of the file system of the WAL mount point (derived)
 nagios_wal_dir_mp_size: '{{ nagios_mp_sizes[nagios_wal_dir_mp] }}'
 # Percentage of the WAL mount point that may be filled with WAL files before warning
 nagios_max_wal_size_warning_percent: 65
@@ -95,7 +97,7 @@ nagios_wal_files_critical: '{{ nagios_wal_files_value | percent(nagios_max_wal_s
 
 # Mount point of the data directory, used to derive size thresholds
 nagios_data_dir_mp: '/'
-# Available space (bytes) on the data mount point (derived)
+# Size (bytes) of the file system of the data mount point (derived)
 nagios_data_dir_mp_size: '{{ nagios_mp_sizes[nagios_data_dir_mp] }}'
 # Reference size (bytes) for the database size check
 nagios_db_size_value: '{{ nagios_data_dir_mp_size }}'

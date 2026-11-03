@@ -1,0 +1,12 @@
+---
+- name: Converge
+  hosts: all
+  # The role creates the nrpe user in PostgreSQL with run_once, as all hosts of a
+  # cluster share one database. Here each host has its own PostgreSQL server,
+  # so converge the hosts one at a time.
+  serial: 1
+  vars:
+    # The PostgreSQL version of the distribution
+    nagios_pg_version: "{{ {'9': 13, '10': 16}[ansible_facts.distribution_major_version] }}"
+  roles:
+    - role: pgvillage.nagios

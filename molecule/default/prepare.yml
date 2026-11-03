@@ -1,0 +1,54 @@
+---
+# The nrpe checks run against PostgreSQL, and the role creates its nrpe user
+# in PostgreSQL through the libpq service "master". The smallest real setup is
+# the PostgreSQL server from the distribution, with local peer authentication,
+# and a pg_service.conf for the postgres user.
+- name: Prepare
+  hosts: all
+  vars:
+    check_postgres_version: 2.26.0
+  tasks:
+    - name: Install the PostgreSQL server, psycopg2 (for community.postgresql) and check_nrpe (to test nrpe)
+      ansible.builtin.dnf:
+        name:
+          - postgresql-server
+          - python3-psycopg2
+          - nagios-plugins-nrpe
+        state: present
+
+    - name: Initialize the PostgreSQL data directory
+      ansible.builtin.command: postgresql-setup --initdb
+      args:
+        creates: /var/lib/pgsql/data/PG_VERSION
+
+    - name: Start PostgreSQL
+      ansible.builtin.systemd:
+        name: postgresql
+        state: started
+        enabled: true
+
+    - name: Define the libpq service master for the postgres user
+      ansible.builtin.copy:
+        dest: /var/lib/pgsql/.pg_service.conf
+        content: |
+          [master]
+          host=/var/run/postgresql
+          port=5432
+          dbname=postgres
+        owner: postgres
+        group: postgres
+        mode: "0600"
+
+    - name: Install check_postgres.pl from upstream where EPEL has no package
+      when: ansible_facts.distribution_major_version == '10'
+      block:
+        - name: Install perl for check_postgres.pl
+          ansible.builtin.dnf:
+            name: perl
+            state: present
+
+        - name: Download check_postgres.pl
+          ansible.builtin.get_url:
+            url: "https://raw.githubusercontent.com/bucardo/check_postgres/{{ check_postgres_version }}/check_postgres.pl"
+            dest: /usr/bin/check_postgres.pl
+            mode: "0755"

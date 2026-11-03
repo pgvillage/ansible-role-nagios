@@ -27,7 +27,7 @@ Many thresholds are derived using filters shipped in [filter_plugins/core.py](..
 | --- | --- | --- |
 | `nagios_enabled` | `true` | Enable or disable this role. When `false`, no tasks are run (e.g. on platforms where nrpe is unavailable). |
 | `nagios_package_state` | `present` | State of the packages in `nagios_packages` (e.g. `present` or `latest`). |
-| `nagios_packages` | `[nrpe, check_postgres]` | Packages to install on the PostgreSQL servers. |
+| `nagios_packages` | `[nrpe, check_postgres, perl-Time-HiRes]` | Packages to install on the PostgreSQL servers. `check_postgres.pl` needs Time::HiRes, which the EPEL package does not pull in. |
 | `nagios_scripts_folder` | `/opt/nagios/nrpe` | Folder where the custom nrpe scripts and the `check_postgres.pl` symlinks are deployed. |
 | `nagios_config_folder` | `/etc/nrpe.d/` | Folder where the nrpe command configuration files are written. |
 | `nagios_nrpe_user` | `nrpe` | PostgreSQL user (created as SUPERUSER) used by nrpe to connect, and owner of the nrpe config files. Also created as a system OS user (no home, shell `/sbin/nologin`) when it does not exist yet; an existing account is left unchanged. |
@@ -67,14 +67,14 @@ Many thresholds are derived using filters shipped in [filter_plugins/core.py](..
 
 ## WAL
 
-The role runs `df` on `nagios_data_dir_mp` and `nagios_wal_dir_mp` to determine the available space.
+The role runs `df` on `nagios_data_dir_mp` and `nagios_wal_dir_mp` to determine the size of their file systems (not the available space, so the thresholds don't change with every file written).
 WAL thresholds are derived from the number of 16MB WAL files that fit on the WAL mount point.
 
 | Variable | Default | Description |
 | --- | --- | --- |
 | `nagios_wal_dir_mp` | `/` | Mount point of the WAL directory. |
-| `nagios_mp_sizes` | derived | Internal: dict of mount point => available bytes, built from the registered `df` output. Normally there is no need to change this. |
-| `nagios_wal_dir_mp_size` | derived | Available space (bytes) on the WAL mount point. |
+| `nagios_mp_sizes` | derived | Internal: dict of mount point => file system size in bytes, built from the registered `df` output. Normally there is no need to change this. |
+| `nagios_wal_dir_mp_size` | derived | Size (bytes) of the file system of the WAL mount point. |
 | `nagios_max_wal_size_warning_percent` | `65` | Percentage of the WAL mount point that may be filled with WAL files before warning. |
 | `nagios_max_wal_size_critical_percent` | `75` | Percentage of the WAL mount point that may be filled with WAL files before critical. |
 | `nagios_wal_files_value` | derived | Number of 16MB WAL files that fit on the WAL mount point. |
@@ -84,12 +84,12 @@ WAL thresholds are derived from the number of 16MB WAL files that fit on the WAL
 
 ## Sizes
 
-All size thresholds default to a percentage of the available space on the data mount point and are rendered with the `human` filter.
+All size thresholds default to a percentage of the size of the file system of the data mount point and are rendered with the `human` filter.
 
 | Variable | Default | Description |
 | --- | --- | --- |
 | `nagios_data_dir_mp` | `/` | Mount point of the data directory. |
-| `nagios_data_dir_mp_size` | derived | Available space (bytes) on the data mount point. |
+| `nagios_data_dir_mp_size` | derived | Size (bytes) of the file system of the data mount point. |
 | `nagios_db_size_value` | `{{ nagios_data_dir_mp_size }}` | Reference size (bytes) for the database size check. |
 | `nagios_db_size_warning` | 80% of `nagios_db_size_value` | Warning threshold for database size. |
 | `nagios_db_size_critical` | 90% of `nagios_db_size_value` | Critical threshold for database size. |

@@ -7,7 +7,7 @@
   delegate_to: "{{ item.hostname }}"
   loop: "{{ nagios_servers }}"
   when: item.enabled
-  notify: reload nagios
+  notify: Reload nagios
 
 - name: Create custom config file (when enabled)
   ansible.builtin.template:
@@ -17,7 +17,7 @@
   delegate_to: "{{ item.hostname }}"
   loop: "{{ nagios_servers }}"
   when: item.enabled
-  notify: reload nagios
+  notify: Reload nagios
 
 - name: Delete config file (when disabled)
   ansible.builtin.file:
@@ -26,4 +26,4 @@
   delegate_to: "{{ item.hostname }}"
   loop: "{{ nagios_servers }}"
   when: not item.enabled
-  notify: reload nagios
+  notify: Reload nagios

@@ -1,0 +1,226 @@
+---
+# Local configuration checks; no packages, services or databases are changed.
+prerun: false
+dependency:
+  name: galaxy
+  enabled: false
+driver:
+  name: default
+  options:
+    managed: false
+    ansible_connection_options:
+      ansible_connection: local
+platforms:
+  - name: legacy
+  - name: single_override
+  - name: multicluster
+  - name: target_override
+  - name: empty_targets
+  - name: named_defaults
+  - name: connection_defaults
+  - name: explicit_services
+  - name: cluster_services
+  - name: single_service
+  - name: invalid_port
+provisioner:
+  name: ansible
+  inventory:
+    group_vars:
+      all:
+        ansible_python_interpreter: '{{ ansible_playbook_python }}'
+        nagios_mp_sizes:
+          /: 107374182400
+    host_vars:
+      legacy:
+        nagios_molecule_expected_users:
+          - cluster: ''
+            service: master
+            port: 5432
+            ssl_mode: prefer
+            name: nrpe
+            run_once: true
+        nagios_molecule_expected_lines:
+          - command[check_postgres_version]
+          - ' -H /tmp -p 5432 '
+          - -s crond
+      single_override:
+        nagios_pg_service: app-primary
+        nagios_pg_host: /run/pgsql
+        nagios_pg_port: 5544
+        nagios_pg_ssl_mode: verify-full
+        nagios_molecule_expected_users:
+          - cluster: ''
+            service: app-primary
+            port: 5544
+            ssl_mode: verify-full
+            name: nrpe
+            run_once: true
+        nagios_molecule_expected_lines:
+          - ' -H /run/pgsql -p 5544 '
+          - PGHOST=/run/pgsql PGPORT=5544
+      multicluster:
+        nagios_clusters:
+          app-one:
+            service: app-one-primary
+            port: 5433
+            ssl_mode: verify-full
+          reporting_2:
+            service: reporting-primary
+            port: 5544
+            ssl_mode: verify-full
+        nagios_molecule_expected_users:
+          - cluster: app-one
+            service: app-one-primary
+            port: 5433
+            ssl_mode: verify-full
+            name: nrpe
+            run_once: true
+          - cluster: reporting_2
+            service: reporting-primary
+            port: 5544
+            ssl_mode: verify-full
+            name: nrpe
+            run_once: true
+        nagios_molecule_expected_lines:
+          - command[check_postgres_version_app-one]
+          - command[check_postgres_version_reporting_2]
+          - '/check_postgres_version -H /tmp -p 5433 '
+          - '/check_postgres_version -H /tmp -p 5544 '
+          - PGPORT=5433
+          - PGPORT=5544
+          - 'pg_multi_db_checks.sh check_postgres_last_vacuum '
+        nagios_molecule_absent_lines:
+          - /check_postgres_version_app-one
+          - /check_postgres_version_reporting_2
+      target_override:
+        nagios_pg_host: /run/pgsql
+        nagios_pg_port: 5433
+        nagios_pg_ssl_mode: verify-full
+        nagios_clusters:
+          custom:
+            service: other-admin
+            host: /run/custom
+            port: 5441
+            ssl_mode: require
+        nagios_molecule_expected_users:
+          - cluster: custom
+            service: other-admin
+            port: 5441
+            ssl_mode: require
+            name: nrpe
+            run_once: true
+        nagios_molecule_expected_lines:
+          - ' -H /run/custom -p 5441 '
+      empty_targets:
+        nagios_clusters: {}
+        nagios_pg_service: fallback-primary
+        nagios_molecule_expected_users:
+          - cluster: ''
+            service: fallback-primary
+            port: 5432
+            ssl_mode: prefer
+            name: nrpe
+            run_once: true
+        nagios_molecule_expected_lines:
+          - command[check_postgres_version]
+      named_defaults:
+        nagios_clusters:
+          app:
+            port: 5433
+        nagios_molecule_expected_users:
+          - cluster: app
+            service: app-master
+            port: 5433
+            ssl_mode: prefer
+            name: nrpe
+            run_once: true
+      connection_defaults:
+        nagios_clusters:
+          app: {}
+        nagios_pg_host: /run/pgsql
+        nagios_pg_port: 5544
+        nagios_pg_ssl_mode: verify-full
+        nagios_molecule_expected_users:
+          - cluster: app
+            service: app-master
+            port: 5544
+            ssl_mode: verify-full
+            name: nrpe
+            run_once: true
+        nagios_molecule_expected_lines:
+          - ' -H /run/pgsql -p 5544 '
+      explicit_services:
+        nagios_clusters:
+          app-one:
+            port: 5433
+          reporting_2:
+            port: 5544
+        nagios_checks:
+          multi_check:
+            check_postgres_locks:
+              warning: 10
+              critical: 20
+          check_postgres: {}
+          service_check:
+            service_postgresql:
+              service: postgresql@app-one,postgresql@reporting_2
+          proces_check: {}
+        nagios_molecule_expected_lines:
+          - command[service_postgresql]
+          - -s postgresql@app-one,postgresql@reporting_2
+        nagios_molecule_service_count: 1
+      cluster_services:
+        nagios_clusters:
+          app-one:
+            port: 5433
+          reporting_2:
+            port: 5544
+        nagios_checks:
+          multi_check: {}
+          check_postgres: {}
+          service_check:
+            service_postgresql:
+              service: postgresql
+              per_cluster: true
+            service_crond:
+              service: crond
+          proces_check: {}
+        nagios_molecule_expected_lines:
+          - command[service_postgresql_app-one]
+          - -s postgresql@app-one
+          - command[service_postgresql_reporting_2]
+          - -s postgresql@reporting_2
+          - command[service_crond]
+        nagios_molecule_service_count: 3
+      single_service:
+        nagios_checks:
+          multi_check: {}
+          check_postgres: {}
+          service_check:
+            service_postgresql:
+              service: postgresql
+              per_cluster: true
+          proces_check: {}
+        nagios_molecule_expected_lines:
+          - command[service_postgresql]
+          - -s postgresql
+        nagios_molecule_absent_lines:
+          - postgresql@
+        nagios_molecule_service_count: 1
+      invalid_port:
+        nagios_clusters:
+          bad:
+            port: 0
+        nagios_molecule_invalid: true
+  env:
+    ANSIBLE_ROLES_PATH: ${MOLECULE_EPHEMERAL_DIRECTORY}/nagios-work/roles
+verifier:
+  name: ansible
+scenario:
+  test_sequence:
+    - syntax
+    - prepare
+    - converge
+    - idempotence
+    - verify
+    - cleanup

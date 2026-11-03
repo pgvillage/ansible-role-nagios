@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+import json
+import os
+import sys
+
+with open(os.environ["NAGIOS_MOLECULE_TRACE"], "a") as trace:
+    trace.write(json.dumps({"command": "check", "args": sys.argv[1:]}) + "\n")
+print("CHECK_POSTGRES_LOCKS OK: DB example")

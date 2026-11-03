@@ -1,0 +1,110 @@
+---
+- name: Verify generated monitoring configurations
+  hosts: all
+  gather_facts: false
+  vars_files:
+    - vars/main.yml
+  vars:
+    nagios_molecule_result: "{{ lookup('file', nagios_molecule_output) | from_json }}"
+    nagios_molecule_config: "{{ nagios_molecule_result.configs.values() | join('\n') }}"
+    nagios_molecule_nrpe: "{{ nagios_molecule_config | regex_findall('(?m)^command\\[([^]]+)\\]') }}"
+    nagios_molecule_central: "{{ nagios_molecule_result.central | regex_findall('check_nrpe_ssl!(\\S+)') }}"
+  tasks:
+    - name: Check invalid targets were rejected before rendering
+      ansible.builtin.assert:
+        that:
+          - nagios_molecule_result.rejected
+          - nagios_molecule_result.configs is not defined
+      when: nagios_molecule_invalid | default(false) | bool
+
+    - name: Verify valid configuration cases
+      when: not (nagios_molecule_invalid | default(false) | bool)
+      block:
+        - name: Match unique NRPE commands with central definitions
+          ansible.builtin.assert:
+            that:
+              - nagios_molecule_nrpe | length == nagios_molecule_nrpe | unique | length
+              - nagios_molecule_nrpe | sort == nagios_molecule_central | sort
+
+        - name: Check administrative connections against expected settings
+          ansible.builtin.assert:
+            that:
+              - nagios_molecule_result.users == nagios_molecule_expected_users
+            fail_msg: >-
+              Expected {{ nagios_molecule_expected_users | to_json }};
+              got {{ nagios_molecule_result.users | to_json }}.
+          when: nagios_molecule_expected_users is defined
+
+        - name: Check expected commands and connection arguments
+          ansible.builtin.assert:
+            that:
+              - item in nagios_molecule_config
+          loop: "{{ nagios_molecule_expected_lines | default([]) }}"
+
+        - name: Check unwanted command forms are absent
+          ansible.builtin.assert:
+            that:
+              - item not in nagios_molecule_config
+          loop: "{{ nagios_molecule_absent_lines | default([]) }}"
+
+        - name: Check the number of systemd service checks
+          ansible.builtin.assert:
+            that:
+              - >-
+                nagios_molecule_result.configs.service_check | regex_findall('command\[') | length
+                == nagios_molecule_service_count
+          when: nagios_molecule_service_count is defined
+
+        - name: Keep host service and process checks unique across clusters
+          ansible.builtin.assert:
+            that:
+              - nagios_molecule_result.configs.service_check.count('command[service_crond]') == 1
+              - nagios_molecule_result.configs.proces_check.count('command[running_postgresql]') == 1
+          when: inventory_hostname == 'multicluster'
+
+- name: Verify the database wrapper with mock commands
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - vars/main.yml
+  tasks:
+    - name: Remove any previous command trace
+      ansible.builtin.file:
+        path: "{{ nagios_molecule_work }}/trace.jsonl"
+        state: absent
+
+    - name: Run the wrapper with a custom connection and thresholds
+      ansible.builtin.command:
+        argv:
+          - bash
+          - "{{ nagios_molecule_work }}/scripts with spaces/pg_multi_db_checks.sh"
+          - check_postgres_locks
+          - -w
+          - "10"
+          - -c
+          - "20"
+      environment:
+        PATH: "{{ nagios_molecule_work }}/bin:{{ lookup('env', 'PATH') }}"
+        PGHOST: /tmp/custom
+        PGPORT: "5544"
+        PGUSER: monitor
+        NAGIOS_MOLECULE_TRACE: "{{ nagios_molecule_work }}/trace.jsonl"
+      changed_when: false
+
+    - name: Check database enumeration and every child command
+      ansible.builtin.assert:
+        that:
+          - nagios_molecule_calls == nagios_molecule_expected_calls
+      vars:
+        nagios_molecule_calls: >-
+          {{ lookup('file', nagios_molecule_work ~ '/trace.jsonl').splitlines() | map('from_json') | list }}
+        nagios_molecule_expected_calls:
+          - command: psql
+            host: /tmp/custom
+            port: "5544"
+            user: monitor
+          - command: check
+            args: [-H, /tmp/custom, -p, "5544", -u, monitor, --db=postgres, -w, "10", -c, "20"]
+          - command: check
+            args: [-H, /tmp/custom, -p, "5544", -u, monitor, --db=app, -w, "10", -c, "20"]

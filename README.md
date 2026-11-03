@@ -21,23 +21,39 @@ Defaults are defined in [defaults/main.yml](defaults/main.yml).
 Multiple PostgreSQL instances
 ----------------------------
 
-The role discovers `stolon_clusters` when `stolon_multicluster` is enabled.
-It creates nrpe in each cluster through `<cluster>-master`, and generates local
-database and Stolon service checks with cluster-specific names and ports.
-Central Nagios definitions use the same command names.
+Define monitoring targets in `nagios_clusters` using inventory variables.
+Each target accepts a primary service, check host, PostgreSQL port and SSL mode;
+the role's defaults apply to omitted options. Cluster configuration is independent
+of other roles.
 
-You can also supply `nagios_clusters` explicitly or configure a single-instance
-connection with `nagios_pg_service`, `nagios_pg_host` and `nagios_pg_port`.
+The role creates nrpe in each configured cluster and generates local database
+checks with cluster-specific names and ports. Systemd service checks can opt into
+per-cluster instances with `per_cluster: true`. Central Nagios definitions use
+the same command names.
+
+The default `nagios_clusters: {}` uses a single-instance connection configured
+with `nagios_pg_service`, `nagios_pg_host` and `nagios_pg_port`.
 See [PostgreSQL instances](docs/api.md#postgresql-instances) for examples and
 authentication requirements.
 
 Validation
 ----------
 
-Run `python3 -m unittest discover -s tests -v`. The tests require Ansible and
-PyYAML. They render configuration and exercise the multi-database wrapper using
-temporary files and mock commands; they do not connect to PostgreSQL or change
-services.
+Install the Molecule dependencies and run the default scenario:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -r molecule/requirements.txt
+molecule test
+```
+
+The scenario uses a local Ansible connection and Molecule's Ansible verifier. It covers
+single-instance defaults, explicit clusters, connection overrides, service checks,
+invalid ports, matching central Nagios definitions, and the multi-database wrapper.
+It uses temporary files and mock database commands; it does not install packages,
+connect to PostgreSQL or change services. Container software and sudo are not required.
+This checks configuration and wrapper behavior rather than a full system deployment.
 
 Dependencies
 ------------

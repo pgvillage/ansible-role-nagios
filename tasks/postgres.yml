@@ -110,7 +110,7 @@
     label: "{{ item.key }}"
 
 # We rely on nrpe user to directly connect to Postgres with Pipes
-# Stolon has these named pipes in /tmp
+# PostgreSQL sockets may be located in /tmp
 # NRPE by default has PrivateTmp=true, and thus cannot connect to postgres on /tmp/.s.PGSQL.5432
 # So, set PrivateTmp=false for this to work
 - name: Create nrpe override folder

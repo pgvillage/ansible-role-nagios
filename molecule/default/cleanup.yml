@@ -1,0 +1,12 @@
+---
+- name: Remove temporary monitoring fixtures
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - vars/main.yml
+  tasks:
+    - name: Remove the scenario working directory
+      ansible.builtin.file:
+        path: "{{ nagios_molecule_work }}"
+        state: absent

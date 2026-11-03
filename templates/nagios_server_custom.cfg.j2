@@ -11,7 +11,7 @@ define service {
 {% endmacro %}
 {% for group, chapter in nagios_checks.items() %}
 {% for check_name, check in chapter.items() %}
-{% if group in ['multi_check', 'check_postgres'] or (group == 'service_check' and nagios_clusters | length > 0 and check.service in ['stolon-keeper', 'stolon-proxy', 'stolon-sentinel']) %}
+{% if group in ['multi_check', 'check_postgres'] or (group == 'service_check' and nagios_clusters | length > 0 and check.per_cluster | default(false) | bool) %}
 {% for cluster_name in __nagios_clusters %}
 {{ service(check_name ~ ('_' ~ cluster_name if cluster_name else '')) }}
 {% endfor %}

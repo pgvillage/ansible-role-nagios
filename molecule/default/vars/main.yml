@@ -1,5 +1,0 @@
----
-nagios_molecule_project: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"
-nagios_molecule_work: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/nagios-work"
-nagios_molecule_output: "{{ nagios_molecule_work }}/{{ inventory_hostname }}.json"
-nagios_molecule_fixture_role: nagios

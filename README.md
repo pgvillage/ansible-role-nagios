@@ -36,25 +36,6 @@ with `nagios_pg_service`, `nagios_pg_host` and `nagios_pg_port`.
 See [PostgreSQL instances](docs/api.md#postgresql-instances) for examples and
 authentication requirements.
 
-Validation
-----------
-
-Install the Molecule dependencies and run the default scenario:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python3 -m pip install -r molecule/requirements.txt
-molecule test
-```
-
-The scenario uses a local Ansible connection and Molecule's Ansible verifier. It covers
-single-instance defaults, explicit clusters, connection overrides, service checks,
-invalid ports, matching central Nagios definitions, and the multi-database wrapper.
-It uses temporary files and mock database commands; it does not install packages,
-connect to PostgreSQL or change services. Container software and sudo are not required.
-This checks configuration and wrapper behavior rather than a full system deployment.
-
 Dependencies
 ------------
 

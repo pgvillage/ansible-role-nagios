@@ -29,7 +29,9 @@
       ansible.builtin.assert:
         that:
           - "'command[check_postgres_backends] = /opt/nagios/nrpe/check_postgres_backends -H /tmp' in cfg['check_postgres']"
-          - "'command[check_postgres_connection] = /usr/bin/env PGHOST=/tmp PGPORT=5432 PGUSER=nrpe /opt/nagios/nrpe/pg_multi_db_checks.sh check_postgres_connection' in cfg['multi_check']"
+          - >-
+            'command[check_postgres_connection] = /usr/bin/env PGHOST=/tmp PGPORT=5432 PGUSER=nrpe
+            /opt/nagios/nrpe/pg_multi_db_checks.sh check_postgres_connection' in cfg['multi_check']
           - "'command[service_crond] = /opt/nagios/nrpe/check_service_wrapper.sh -s crond' in cfg['service_check']"
           - "'command[running_postgresql] =' in cfg['proces_check']"
       vars:

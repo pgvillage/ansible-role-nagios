@@ -1,0 +1,59 @@
+---
+- name: Verify
+  hosts: all
+  vars:
+    check_nrpe: /usr/lib64/nagios/plugins/check_nrpe -H 127.0.0.1
+  tasks:
+    - name: Read the service states
+      ansible.builtin.service_facts:
+
+    - name: Check that nrpe runs
+      ansible.builtin.assert:
+        that: ansible_facts.services['nrpe.service'].state == 'running'
+
+    - name: Check that the nrpe user is a PostgreSQL superuser
+      become: true
+      become_user: postgres
+      ansible.builtin.command: psql -Atc "select rolsuper from pg_roles where rolname = 'nrpe'"
+      register: nrpe_role
+      changed_when: false
+      failed_when: nrpe_role.stdout != 't'
+
+    - name: Read the nrpe command definitions
+      ansible.builtin.slurp:
+        src: "/etc/nrpe.d/{{ item }}.cfg"
+      loop: [check_postgres, multi_check, service_check, proces_check]
+      register: nrpe_cfg
+
+    - name: Check the nrpe command definitions
+      ansible.builtin.assert:
+        that:
+          - "'command[check_postgres_backends] = /opt/nagios/nrpe/check_postgres_backends -H /tmp' in cfg['check_postgres']"
+          - "'command[check_postgres_connection] = /opt/nagios/nrpe/pg_multi_db_checks.sh check_postgres_connection' in cfg['multi_check']"
+          - "'command[service_crond] = /opt/nagios/nrpe/check_service_wrapper.sh -s crond' in cfg['service_check']"
+          - "'command[running_postgresql] =' in cfg['proces_check']"
+      vars:
+        cfg: >-
+          {{ dict(nrpe_cfg.results | map(attribute='item')
+                  | zip(nrpe_cfg.results | map(attribute='content') | map('b64decode'))) }}
+
+    # Through nrpe, as the nagios server would: check_postgres.pl (through the
+    # symlinks) and pg_multi_db_checks.sh connect to PostgreSQL as nrpe
+    - name: Run PostgreSQL checks through nrpe
+      ansible.builtin.command: "{{ check_nrpe }} -c {{ item }}"
+      loop:
+        - check_postgres_connection
+        - check_postgres_backends
+        - check_postgres_txn_wraparound
+        # Not check_postgres_version: check_postgres 2.26.0 reads 16.15 as
+        # version 16.1, so it fails for every minor release from 10 on
+      register: checks
+      changed_when: false
+      failed_when: checks.rc != 0 or not checks.stdout.startswith(('POSTGRES_', 'OK'))
+
+    - name: Run a service check through nrpe
+      ansible.builtin.command: "{{ check_nrpe }} -c service_stolon_keeper"
+      register: service_check
+      changed_when: false
+      # stolon-keeper is not installed here, so the check must report it
+      failed_when: service_check.rc != 2 or 'stolon-keeper NOK' not in service_check.stdout

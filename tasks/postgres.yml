@@ -42,11 +42,12 @@
         shell: /sbin/nologin
         state: present
 
+# The size of the file system, not the available space: thresholds then don't change with every file written
 - name: Get size of data dir in bytes
   ansible.builtin.shell:
     cmd: |
       set -o pipefail
-      df -B1 . | awk '{if(NR==2){print $4}}'
+      df -B1 . | awk '{if(NR==2){print $2}}'
   args:
     chdir: "{{ item }}"
   loop:
@@ -54,10 +55,6 @@
     - "{{ nagios_wal_dir_mp }}"
   changed_when: false
   register: nagios_mp_sizes_out
-
-- name: Debug
-  ansible.builtin.debug:
-    var: nagios_mp_size
 
 - name: Create custom script folder
   ansible.builtin.file:
@@ -70,6 +67,7 @@
     src: "files/nrpe/"
     dest: "{{ nagios_scripts_folder }}/"
     mode: "0755"
+  notify: Restart nrpe
 
 - name: Create links for check_postgres.pl
   ansible.builtin.file:
@@ -88,6 +86,7 @@
   loop: "{{ nagios_checks | dict2items }}"
   loop_control:
     label: "{{ item.key }}"
+  notify: Restart nrpe
 
 # We rely on nrpe user to directly connect to Postgres with Pipes
 # Stolon has these named pipes in /tmp
@@ -105,11 +104,13 @@
     content: |
       [Service]
       PrivateTmp=false
+  notify: Restart nrpe
 
+# Restarted by the handler when the config changes
 - name: "Start nrpe service"
   become: true
   ansible.builtin.systemd:
     name: nrpe.service
-    state: restarted
-    enabled: "false"
-    daemon_reload: "true"
+    state: started
+    enabled: true
+    daemon_reload: true

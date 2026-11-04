@@ -38,6 +38,22 @@ nagios_nrpe_user: nrpe
 # Group owner of the nrpe config files; created as a system OS group together with nagios_nrpe_user
 nagios_nrpe_group: '{{ nagios_nrpe_user }}'
 
+# PostgreSQL connection used to create nrpe in a single-instance deployment.
+nagios_pg_service: master
+nagios_pg_host: /tmp
+nagios_pg_port: 5432
+nagios_pg_ssl_mode: prefer
+
+# Named monitoring targets configured independently of other roles.
+# Each target accepts service, host, port and ssl_mode overrides.
+# An empty dictionary uses the single-instance connection above and legacy command names.
+nagios_clusters: {}
+#  pgv-testcluster-1:
+#    service: pgv-testcluster-1-master
+#    host: /tmp
+#    port: 5432
+#    ssl_mode: verify-full
+
 # Expected maximum number of locks; warning and critical are derived as a percentage of this value
 nagios_locks_value: 800
 # Warning threshold for the number of locks (default 50% of nagios_locks_value)
@@ -164,7 +180,7 @@ nagios_disk_space_critical: '90%'
 # (templates/<group>.j2) which is rendered to <nagios_config_folder>/<group>.cfg:
 # - multi_check: checks run against all databases with pg_multi_db_checks.sh (warning / critical)
 # - check_postgres: check_postgres.pl actions, called through a symlink named after the check (warning / critical)
-# - service_check: systemd service checks using check_service_wrapper.sh (service)
+# - service_check: systemd service checks using check_service_wrapper.sh (service, optional per_cluster)
 # - proces_check: check_procs process checks (user / search / warning / critical)
 # All checks are also registered as services on the central nagios servers (see nagios_servers)
 nagios_checks:
@@ -242,12 +258,6 @@ nagios_checks:
       warning: '{{ nagios_disk_space_warning }}'
       critical: '{{ nagios_disk_space_critical }}'
   service_check:
-    service_stolon_keeper:
-      service: stolon-keeper
-    service_stolon_proxy:
-      service: stolon-proxy
-    service_stolon_sentinel:
-      service: stolon-sentinel
     service_crond:
       service: crond
   proces_check:

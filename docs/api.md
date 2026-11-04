@@ -34,6 +34,93 @@ Many thresholds are derived using filters shipped in [filter_plugins/core.py](..
 | `nagios_nrpe_group` | `{{ nagios_nrpe_user }}` | Group owner of the nrpe config files. Created as a system OS group together with `nagios_nrpe_user`, only when that user does not exist yet. |
 | `nagios_selinux_modules` | `[my-nrpe, my-check-postgres]` | SELinux modules (`files/<name>.te`) to compile and install on RedHat family systems with SELinux enabled. |
 
+## PostgreSQL instances
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `nagios_pg_service` | `master` | Administrative libpq service used to create nrpe in single-instance mode. |
+| `nagios_pg_host` | `/tmp` | Socket directory or host used by local database checks. |
+| `nagios_pg_port` | `5432` | Default PostgreSQL port for provisioning and checks. |
+| `nagios_pg_ssl_mode` | `prefer` | Default SSL mode for administrative provisioning. |
+| `nagios_clusters` | `{}` | Named monitoring targets configured independently of other roles. |
+
+Define targets explicitly in inventory by overriding `nagios_clusters`.
+Cluster configuration is independent of other roles. The administrative service
+definitions must exist in the postgres OS user's `.pg_service.conf`.
+
+For example, a single named cluster:
+
+```yaml
+nagios_clusters:
+  pgv-testcluster-1:
+    service: pgv-testcluster-1-master
+    host: /tmp
+    port: 5432
+    ssl_mode: verify-full
+```
+
+Multiple clusters use the same flat structure:
+
+```yaml
+nagios_clusters:
+  app:
+    service: app-master
+    port: 5433
+    ssl_mode: verify-full
+  reporting:
+    service: reporting-master
+    host: /tmp
+    port: 5434
+    ssl_mode: verify-full
+```
+
+Each target accepts:
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `service` | `<name>-master` | Administrative libpq service used to create nrpe on the primary. |
+| `host` | `nagios_pg_host` | Local socket directory or database host used by checks. |
+| `port` | `nagios_pg_port` | PostgreSQL port passed explicitly to provisioning and checks. |
+| `ssl_mode` | `nagios_pg_ssl_mode` | SSL mode for administrative provisioning. |
+
+The role creates nrpe once per target on its primary. PostgreSQL roles replicate
+to standby servers. Checks connect locally as `nagios_nrpe_user`; each
+cluster must allow that connection in its HBA rules. For peer authentication with
+the default OS/database user, include `local all nrpe peer` in the cluster's
+`pg_hba.conf` through its configuration management. This role does not edit HBA files.
+
+Database commands receive a `_<cluster>` suffix, for example
+`check_postgres_version_app` and `check_postgres_last_vacuum_reporting`.
+The underlying check_postgres symlink names stay unchanged so action detection
+continues to work. Database enumeration and child checks use the same host, port
+and user. Central Nagios definitions use the generated NRPE command names.
+
+Service checks and process checks run once per host by default. A service check
+with `per_cluster: true` targets `<service>@<cluster>` for each named target,
+using a `_<cluster>` suffix in its command name and central Nagios definition.
+For example, this entry under `nagios_checks.service_check` monitors the
+`postgresql@<cluster>` units:
+
+```yaml
+service_postgresql:
+  service: postgresql
+  per_cluster: true
+```
+
+With no named targets, it checks the service as written without an instance
+suffix. Service names, including comma-separated lists, are used as written when
+`per_cluster` is false or omitted. No database orchestration services are assumed.
+
+The default `nagios_clusters: {}` selects single-instance mode using the
+`nagios_pg_*` variables. Legacy command names are retained:
+
+```yaml
+nagios_clusters: {}
+nagios_pg_service: pgv-testcluster-1-master
+nagios_pg_port: 5432
+nagios_pg_ssl_mode: verify-full
+```
+
 ## Running PostgreSQL processes (check_procs)
 
 | Variable | Default | Description |
@@ -134,7 +221,7 @@ All checks are also registered as services on the central Nagios servers (see `n
 | --- | --- | --- |
 | `multi_check` | `pg_multi_db_checks.sh`, run against all databases | `warning`, `critical` |
 | `check_postgres` | `check_postgres.pl` action, called through a symlink named after the check | `warning`, `critical` |
-| `service_check` | `check_service_wrapper.sh`, checks a systemd service | `service` |
+| `service_check` | `check_service_wrapper.sh`, checks a systemd service | `service`, optional `per_cluster` (default `false`) |
 | `proces_check` | `check_procs` | `user`, `search`, `warning`, `critical` |
 
 Default checks:
@@ -164,9 +251,6 @@ Default checks:
 | `check_postgres` | `check_postgres_timesync` | `nagios_timesync` |
 | `check_postgres` | `check_postgres_txn_wraparound` | `nagios_txn_wraparound_*` |
 | `check_postgres` | `check_postgres_disk_space` | `nagios_disk_space_*` |
-| `service_check` | `service_stolon_keeper` | service `stolon-keeper` |
-| `service_check` | `service_stolon_proxy` | service `stolon-proxy` |
-| `service_check` | `service_stolon_sentinel` | service `stolon-sentinel` |
 | `service_check` | `service_crond` | service `crond` |
 | `proces_check` | `running_postgresql` | `nagios_running_postgresql_*` |
 

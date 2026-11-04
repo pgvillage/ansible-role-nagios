@@ -29,7 +29,9 @@
       ansible.builtin.assert:
         that:
           - "'command[check_postgres_backends] = /opt/nagios/nrpe/check_postgres_backends -H /tmp' in cfg['check_postgres']"
-          - "'command[check_postgres_connection] = /opt/nagios/nrpe/pg_multi_db_checks.sh check_postgres_connection' in cfg['multi_check']"
+          - >-
+            'command[check_postgres_connection] = /usr/bin/env PGHOST=/tmp PGPORT=5432 PGUSER=nrpe
+            /opt/nagios/nrpe/pg_multi_db_checks.sh check_postgres_connection' in cfg['multi_check']
           - "'command[service_crond] = /opt/nagios/nrpe/check_service_wrapper.sh -s crond' in cfg['service_check']"
           - "'command[running_postgresql] =' in cfg['proces_check']"
       vars:
@@ -52,8 +54,10 @@
       failed_when: checks.rc != 0 or not checks.stdout.startswith(('POSTGRES_', 'OK'))
 
     - name: Run a service check through nrpe
-      ansible.builtin.command: "{{ check_nrpe }} -c service_stolon_keeper"
+      ansible.builtin.command: "{{ check_nrpe }} -c service_crond"
       register: service_check
       changed_when: false
-      # stolon-keeper is not installed here, so the check must report it
-      failed_when: service_check.rc != 2 or 'stolon-keeper NOK' not in service_check.stdout
+      # The container may not run crond; require a consistent service-check result.
+      failed_when: >-
+        service_check.rc not in [0, 2] or
+        ('crond OK' if service_check.rc == 0 else 'crond NOK') not in service_check.stdout

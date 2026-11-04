@@ -1,6 +1,8 @@
 # Ansible managed (ansible_postgres)
 
 # pg_multi_db_checks
+{% for cluster_name, cluster_config in __nagios_clusters.items() %}
 {% for check_name, check in item.value.items() %}
-command[{{ check_name }}] = {{ nagios_scripts_folder }}/pg_multi_db_checks.sh {{ check_name }} -w {{ check.warning }} -c {{ check.critical }}
+command[{{ check_name }}{{ '_' ~ cluster_name if cluster_name else '' }}] = /usr/bin/env PGHOST={{ cluster_config.host | default(nagios_pg_host) | quote }} PGPORT={{ cluster_config.port | default(nagios_pg_port) }} PGUSER={{ nagios_nrpe_user | quote }} {{ nagios_scripts_folder }}/pg_multi_db_checks.sh {{ check_name }} -w {{ check.warning }} -c {{ check.critical }}
+{% endfor %}
 {% endfor %}

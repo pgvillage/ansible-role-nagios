@@ -1,0 +1,56 @@
+---
+# Tests nagios_clusters (multi-instance) on Rocky Linux 9 and 10: two
+# PostgreSQL instances per host (cluster1 on 5432, cluster2 on 5433), checks
+# per cluster, and cluster2 with its own data and WAL mount points (tmpfs of a
+# known size), so its size thresholds differ from cluster1's. prepare.yml runs
+# the default scenario's prepare.yml and adds the second instance; requirements.yml
+# is the default scenario's.
+dependency:
+  name: galaxy
+  options:
+    requirements-file: ${MOLECULE_SCENARIO_DIRECTORY}/../default/requirements.yml
+driver:
+  name: podman
+platforms:
+  - name: nagios-mi-el9
+    image: docker.io/geerlingguy/docker-rockylinux9-ansible:latest
+    pre_build_image: true
+    command: /usr/sbin/init
+    systemd: always
+    # To mount the tmpfs file systems of cluster2 (prepare.yml)
+    privileged: true
+    groups:
+      - postgres
+  - name: nagios-mi-el10
+    image: docker.io/geerlingguy/docker-rockylinux10-ansible:latest
+    pre_build_image: true
+    command: /usr/sbin/init
+    systemd: always
+    # To mount the tmpfs file systems of cluster2 (prepare.yml)
+    privileged: true
+    groups:
+      - postgres
+provisioner:
+  name: ansible
+  playbooks:
+    prepare: prepare.yml
+  inventory:
+    host_vars:
+      # EPEL 10 has no check_postgres package (see the default scenario)
+      nagios-mi-el10:
+        nagios_packages:
+          - nrpe
+          - perl-Time-HiRes
+verifier:
+  name: ansible
+scenario:
+  test_sequence:
+    - dependency
+    - destroy
+    - syntax
+    - create
+    - prepare
+    - converge
+    - idempotence
+    - verify
+    - destroy

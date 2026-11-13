@@ -1,0 +1,69 @@
+---
+- name: Verify
+  hosts: all
+  vars:
+    check_nrpe: /usr/lib64/nagios/plugins/check_nrpe -H 127.0.0.1
+  tasks:
+    - name: Read the nrpe command definitions
+      ansible.builtin.slurp:
+        src: "/etc/nrpe.d/{{ item }}.cfg"
+      loop: [check_postgres, multi_check]
+      register: nrpe_cfg
+
+    - name: Read the size of the root file system (the mount points of cluster1)
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          df -B1 / | awk 'NR==2 {print $2}'
+      register: root_size
+      changed_when: false
+
+    # cluster2: data on a 10 GiB file system, WAL on a 1 GiB one (64 WAL files)
+    # cluster1: both on / (the role defaults)
+    - name: Check the commands and thresholds per cluster
+      ansible.builtin.assert:
+        that:
+          - >-
+            'command[check_postgres_backends_cluster1] = /opt/nagios/nrpe/check_postgres_backends -H /var/run/postgresql -p 5432'
+            in cfg['check_postgres']
+          - >-
+            'command[check_postgres_backends_cluster2] = /opt/nagios/nrpe/check_postgres_backends -H /var/run/postgresql -p 5433'
+            in cfg['check_postgres']
+          - >-
+            'command[check_postgres_connection_cluster2] = /usr/bin/env PGHOST=/var/run/postgresql PGPORT=5433 PGUSER=nrpe
+            /opt/nagios/nrpe/pg_multi_db_checks.sh check_postgres_connection' in cfg['multi_check']
+          # 80% and 90% of 10 GiB
+          - >-
+            "command[check_postgres_database_size_cluster2] = /opt/nagios/nrpe/check_postgres_database_size
+            -H /var/run/postgresql -p 5433 -w '8G' -c '9G'" in cfg['check_postgres']
+          # 65% of 64 WAL files, and the minimum of 100
+          - >-
+            "command[check_postgres_wal_files_cluster2] = /opt/nagios/nrpe/check_postgres_wal_files
+            -H /var/run/postgresql -p 5433 -w '42' -c '100'" in cfg['check_postgres']
+          - >-
+            ("command[check_postgres_database_size_cluster1] = /opt/nagios/nrpe/check_postgres_database_size
+            -H /var/run/postgresql -p 5432 -w '" ~ db_warning_cluster1 ~ "'") in cfg['check_postgres']
+        fail_msg: "{{ cfg['check_postgres'] }}"
+      vars:
+        cfg: >-
+          {{ dict(nrpe_cfg.results | map(attribute='item')
+                  | zip(nrpe_cfg.results | map(attribute='content') | map('b64decode'))) }}
+        # 80% of the root file system, as the role's human filter writes it (e.g. 47G)
+        db_warning_cluster1: >-
+          {%- set ns = namespace(n=root_size.stdout | float * 0.8, i=0) -%}
+          {%- for _ in range(5) if ns.n >= 1024 -%}
+          {%-   set ns.n = ns.n / 1024 -%}{%- set ns.i = ns.i + 1 -%}
+          {%- endfor -%}
+          {{ '%.0f' | format(ns.n) }}{{ ['', 'k', 'M', 'G', 'T', 'P'][ns.i] }}
+
+    - name: Run PostgreSQL checks of both clusters through nrpe
+      ansible.builtin.command: "{{ check_nrpe }} -c {{ item }}"
+      loop:
+        - check_postgres_connection_cluster1
+        - check_postgres_connection_cluster2
+        - check_postgres_backends_cluster1
+        - check_postgres_backends_cluster2
+        - check_postgres_database_size_cluster2
+      register: checks
+      changed_when: false
+      failed_when: checks.rc != 0 or not checks.stdout.startswith(('POSTGRES_', 'OK'))

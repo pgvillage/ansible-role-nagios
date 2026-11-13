@@ -1,0 +1,60 @@
+---
+# The default scenario's prepare (PostgreSQL on 5432, check_postgres), plus a
+# second PostgreSQL instance on 5433 and the libpq services of both clusters.
+- name: Prepare as the default scenario
+  ansible.builtin.import_playbook: ../default/prepare.yml
+
+- name: Prepare cluster2
+  hosts: all
+  tasks:
+    # File systems of a known size, so the thresholds of cluster2 are known
+    - name: Mount the data and WAL file systems of cluster2
+      ansible.builtin.shell:
+        cmd: |
+          set -e
+          mkdir -p {{ item.path }}
+          if findmnt {{ item.path }} >/dev/null; then exit 0; fi
+          mount -t tmpfs -o size={{ item.size }} tmpfs {{ item.path }}
+          echo mounted
+      register: mount_cluster2
+      changed_when: "'mounted' in mount_cluster2.stdout"
+      loop:
+        - path: /pgdata/cluster2
+          size: 10g
+        - path: /pgwal/cluster2
+          size: 1g
+
+    - name: Initialize the data directory of cluster2
+      become: true
+      become_user: postgres
+      ansible.builtin.command: initdb -D /var/lib/pgsql/cluster2
+      args:
+        creates: /var/lib/pgsql/cluster2/PG_VERSION
+
+    - name: Start cluster2 on port 5433
+      become: true
+      become_user: postgres
+      ansible.builtin.command: >-
+        pg_ctl start -w -D /var/lib/pgsql/cluster2 -l /var/lib/pgsql/cluster2.log
+        -o "-p 5433 -k /var/run/postgresql"
+      register: start_cluster2
+      changed_when: true
+      # Already running (e.g. prepare runs twice)
+      failed_when: start_cluster2.rc != 0 and 'another server might be running' not in start_cluster2.stderr
+
+    - name: Define the libpq services of both clusters for the postgres user
+      ansible.builtin.copy:
+        dest: /var/lib/pgsql/.pg_service.conf
+        content: |
+          [cluster1-master]
+          host=/var/run/postgresql
+          port=5432
+          dbname=postgres
+
+          [cluster2-master]
+          host=/var/run/postgresql
+          port=5433
+          dbname=postgres
+        owner: postgres
+        group: postgres
+        mode: "0600"

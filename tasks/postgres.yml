@@ -70,11 +70,26 @@
       df -B1 . | awk '{if(NR==2){print $2}}'
   args:
     chdir: "{{ item }}"
-  loop:
-    - "{{ nagios_data_dir_mp }}"
-    - "{{ nagios_wal_dir_mp }}"
+  loop: "{{ __nagios_mount_points }}"
   changed_when: false
   register: nagios_mp_sizes_out
+
+# nagios_checks per cluster, with the sizes of the mount points of that cluster (data_dir_mp and wal_dir_mp in
+# nagios_clusters, default nagios_data_dir_mp and nagios_wal_dir_mp). Every size based threshold derives from
+# nagios_data_dir_mp_size or nagios_wal_dir_mp_size, so overriding those two per cluster is enough.
+- name: Reset the checks per cluster
+  ansible.builtin.set_fact:
+    __nagios_cluster_checks: {}
+
+- name: Derive the checks per cluster from its mount points
+  ansible.builtin.set_fact:
+    __nagios_cluster_checks: "{{ __nagios_cluster_checks | combine({item.key: nagios_checks}) }}"
+  loop: "{{ __nagios_clusters | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  vars:
+    nagios_data_dir_mp_size: "{{ nagios_mp_sizes[item.value.data_dir_mp | default(nagios_data_dir_mp)] }}"
+    nagios_wal_dir_mp_size: "{{ nagios_mp_sizes[item.value.wal_dir_mp | default(nagios_wal_dir_mp)] }}"
 
 - name: Create custom script folder
   ansible.builtin.file:

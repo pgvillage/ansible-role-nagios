@@ -53,6 +53,8 @@ nagios_clusters: {}
 #    host: /tmp
 #    port: 5432
 #    ssl_mode: verify-full
+#    data_dir_mp: /data/pgv-testcluster-1
+#    wal_dir_mp: /wal/pgv-testcluster-1
 
 # Expected maximum number of locks; warning and critical are derived as a percentage of this value
 nagios_locks_value: 800
@@ -71,7 +73,8 @@ nagios_connections_critical: '{{ nagios_connections_value | percent(80) }}'
 # Expected PostgreSQL major version (check_postgres_version)
 nagios_pg_version: 17
 
-# Mount point of the WAL directory, used to determine the size of its file system
+# Mount point of the WAL directory, used to determine the size of its file system.
+# A cluster in nagios_clusters can set its own (wal_dir_mp).
 nagios_wal_dir_mp: '/'
 
 # Internal: dict of mount point => file system size in bytes, derived from the 'df' output registered by the role
@@ -95,7 +98,8 @@ nagios_wal_files_warning: '{{ nagios_wal_files_value | percent(nagios_max_wal_si
 # Critical threshold for the number of WAL files (minimum 100)
 nagios_wal_files_critical: '{{ nagios_wal_files_value | percent(nagios_max_wal_size_critical_percent, 100) }}'
 
-# Mount point of the data directory, used to derive size thresholds
+# Mount point of the data directory, used to derive size thresholds.
+# A cluster in nagios_clusters can set its own (data_dir_mp).
 nagios_data_dir_mp: '/'
 # Size (bytes) of the file system of the data mount point (derived)
 nagios_data_dir_mp_size: '{{ nagios_mp_sizes[nagios_data_dir_mp] }}'

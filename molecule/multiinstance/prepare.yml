@@ -7,23 +7,6 @@
 - name: Prepare cluster2
   hosts: all
   tasks:
-    # File systems of a known size, so the thresholds of cluster2 are known
-    - name: Mount the data and WAL file systems of cluster2
-      ansible.builtin.shell:
-        cmd: |
-          set -e
-          mkdir -p {{ item.path }}
-          if findmnt {{ item.path }} >/dev/null; then exit 0; fi
-          mount -t tmpfs -o size={{ item.size }} tmpfs {{ item.path }}
-          echo mounted
-      register: mount_cluster2
-      changed_when: "'mounted' in mount_cluster2.stdout"
-      loop:
-        - path: /pgdata/cluster2
-          size: 10g
-        - path: /pgwal/cluster2
-          size: 1g
-
     - name: Initialize the data directory of cluster2
       become: true
       become_user: postgres

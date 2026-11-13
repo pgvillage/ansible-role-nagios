@@ -11,3 +11,10 @@ __nagios_clusters: >-
       'ssl_mode': nagios_pg_ssl_mode
     }
   } }}
+
+# The mount points to run df on: the global ones and those of every cluster
+__nagios_mount_points: >-
+  {{ ([nagios_data_dir_mp, nagios_wal_dir_mp]
+      + (__nagios_clusters.values() | selectattr('data_dir_mp', 'defined') | map(attribute='data_dir_mp') | list)
+      + (__nagios_clusters.values() | selectattr('wal_dir_mp', 'defined') | map(attribute='wal_dir_mp') | list))
+     | unique }}

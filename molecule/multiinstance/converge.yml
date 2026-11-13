@@ -1,0 +1,21 @@
+---
+- name: Converge
+  hosts: all
+  # The role creates the nrpe user with run_once (see the default scenario)
+  serial: 1
+  vars:
+    nagios_pg_version: "{{ {'9': 13, '10': 16}[ansible_facts.distribution_major_version] }}"
+    nagios_clusters:
+      cluster1:
+        service: cluster1-master
+        host: /var/run/postgresql
+        port: 5432
+      cluster2:
+        service: cluster2-master
+        host: /var/run/postgresql
+        port: 5433
+        # Other file systems than / (tmpfs in the container)
+        data_dir_mp: /dev/shm
+        wal_dir_mp: /run
+  roles:
+    - role: pgvillage.nagios

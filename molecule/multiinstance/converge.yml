@@ -14,7 +14,8 @@
         service: cluster2-master
         host: /var/run/postgresql
         port: 5433
-        data_dir_mp: /pgdata/cluster2
-        wal_dir_mp: /pgwal/cluster2
+        # Other file systems than / (tmpfs in the container)
+        data_dir_mp: /dev/shm
+        wal_dir_mp: /run
   roles:
     - role: pgvillage.nagios

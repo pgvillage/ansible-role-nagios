@@ -1,10 +1,10 @@
 ---
 # Tests nagios_clusters (multi-instance) on Rocky Linux 9 and 10: two
 # PostgreSQL instances per host (cluster1 on 5432, cluster2 on 5433), checks
-# per cluster, and cluster2 with its own data and WAL mount points (tmpfs of a
-# known size), so its size thresholds differ from cluster1's. prepare.yml runs
-# the default scenario's prepare.yml and adds the second instance; requirements.yml
-# is the default scenario's.
+# per cluster, and cluster2 with its own data and WAL mount points (/dev/shm and
+# /run, tmpfs file systems in the container), so its size thresholds differ from
+# cluster1's (/). prepare.yml runs the default scenario's prepare.yml and adds
+# the second instance; requirements.yml is the default scenario's.
 dependency:
   name: galaxy
   options:
@@ -17,8 +17,6 @@ platforms:
     pre_build_image: true
     command: /usr/sbin/init
     systemd: always
-    # To mount the tmpfs file systems of cluster2 (prepare.yml)
-    privileged: true
     groups:
       - postgres
   - name: nagios-mi-el10
@@ -26,8 +24,6 @@ platforms:
     pre_build_image: true
     command: /usr/sbin/init
     systemd: always
-    # To mount the tmpfs file systems of cluster2 (prepare.yml)
-    privileged: true
     groups:
       - postgres
 provisioner:

@@ -1,0 +1,103 @@
+---
+- name: Verify
+  hosts: all
+  vars:
+    check_nrpe: /usr/lib64/nagios/plugins/check_nrpe -H 127.0.0.1
+    check_postgres_cfg: "{{ nrpe_cfg.results[0].content | b64decode }}"
+    multi_check_cfg: "{{ nrpe_cfg.results[1].content | b64decode }}"
+    # The thresholds as the role's defaults derive them from the file system sizes (bytes):
+    # database size 80% / 90% of the data mount point, with the role's human filter (e.g. 47G),
+    # WAL files 65% (minimum 10) / 75% (minimum 100) of the number of 16 MiB files on the WAL mount point
+    db_size: >-
+      {%- set result = [] -%}
+      {%- for pct in [80, 90] -%}
+      {%-   set ns = namespace(n=data_size | float * pct / 100, i=0) -%}
+      {%-   for _ in range(5) if ns.n >= 1024 -%}
+      {%-     set ns.n = ns.n / 1024 -%}{%- set ns.i = ns.i + 1 -%}
+      {%-   endfor -%}
+      {%-   set _ = result.append('%.0f' | format(ns.n) ~ ['', 'k', 'M', 'G', 'T', 'P'][ns.i]) -%}
+      {%- endfor -%}
+      -w '{{ result[0] }}' -c '{{ result[1] }}'
+    wal_files: >-
+      {%- set files = wal_size | float / 16777216 -%}
+      {%- set warning = files * 0.65 -%}
+      {%- set critical = files * 0.75 -%}
+      -w '{{ (10 if warning < 10 else '%.0f' | format(warning)) | int | round }}'
+      -c '{{ (100 if critical < 100 else '%.0f' | format(critical)) | int | round }}'
+  tasks:
+    - name: Read the nrpe command definitions
+      ansible.builtin.slurp:
+        src: "/etc/nrpe.d/{{ item }}.cfg"
+      loop: [check_postgres, multi_check]
+      register: nrpe_cfg
+
+    - name: Read the sizes of the file systems
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          df -B1 {{ item }} | awk 'NR==2 {print $2}'
+      loop: [/, /dev/shm, /run]
+      register: df
+      changed_when: false
+
+    - name: Check that the mount points of cluster2 are other file systems of another size
+      ansible.builtin.assert:
+        that:
+          - sizes['/'] != sizes['/dev/shm']
+          - sizes['/'] != sizes['/run']
+        fail_msg: "{{ sizes | to_json }}"
+      vars:
+        sizes: "{{ df.results | items2dict(key_name='item', value_name='stdout') }}"
+
+    - name: Check the commands per cluster
+      ansible.builtin.assert:
+        that:
+          - >-
+            'command[check_postgres_backends_cluster1] = /opt/nagios/nrpe/check_postgres_backends -H /var/run/postgresql -p 5432'
+            in check_postgres_cfg
+          - >-
+            'command[check_postgres_backends_cluster2] = /opt/nagios/nrpe/check_postgres_backends -H /var/run/postgresql -p 5433'
+            in check_postgres_cfg
+          - >-
+            'command[check_postgres_connection_cluster2] = /usr/bin/env PGHOST=/var/run/postgresql PGPORT=5433 PGUSER=nrpe
+            /opt/nagios/nrpe/pg_multi_db_checks.sh check_postgres_connection' in multi_check_cfg
+        fail_msg: "{{ check_postgres_cfg }}"
+
+    # cluster1 on / (the role defaults), cluster2: data on /dev/shm, WAL on /run
+    - name: Check the size thresholds per cluster
+      ansible.builtin.assert:
+        that:
+          - >-
+            ('command[check_postgres_database_size_' ~ item.cluster ~ '] = /opt/nagios/nrpe/check_postgres_database_size
+            -H /var/run/postgresql -p ' ~ item.port ~ ' ' ~ db_size) in check_postgres_cfg
+          - >-
+            ('command[check_postgres_wal_files_' ~ item.cluster ~ '] = /opt/nagios/nrpe/check_postgres_wal_files
+            -H /var/run/postgresql -p ' ~ item.port ~ ' ' ~ wal_files) in check_postgres_cfg
+        fail_msg: "Expected {{ db_size }} and {{ wal_files }} in {{ check_postgres_cfg }}"
+      loop:
+        - cluster: cluster1
+          port: 5432
+          data: /
+          wal: /
+        - cluster: cluster2
+          port: 5433
+          data: /dev/shm
+          wal: /run
+      loop_control:
+        label: "{{ item.cluster }}"
+      vars:
+        sizes: "{{ df.results | items2dict(key_name='item', value_name='stdout') }}"
+        data_size: "{{ sizes[item.data] }}"
+        wal_size: "{{ sizes[item.wal] }}"
+
+    - name: Run PostgreSQL checks of both clusters through nrpe
+      ansible.builtin.command: "{{ check_nrpe }} -c {{ item }}"
+      loop:
+        - check_postgres_connection_cluster1
+        - check_postgres_connection_cluster2
+        - check_postgres_backends_cluster1
+        - check_postgres_backends_cluster2
+        - check_postgres_database_size_cluster2
+      register: checks
+      changed_when: false
+      failed_when: checks.rc != 0 or not checks.stdout.startswith(('POSTGRES_', 'OK'))

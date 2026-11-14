@@ -82,6 +82,8 @@ Each target accepts:
 | `host` | `nagios_pg_host` | Local socket directory or database host used by checks. |
 | `port` | `nagios_pg_port` | PostgreSQL port passed explicitly to provisioning and checks. |
 | `ssl_mode` | `nagios_pg_ssl_mode` | SSL mode for administrative provisioning. |
+| `data_dir_mp` | `nagios_data_dir_mp` | Mount point of the data directory of the cluster: the size thresholds of the cluster derive from its file system size (see [Sizes](#sizes)). |
+| `wal_dir_mp` | `nagios_wal_dir_mp` | Mount point of the WAL directory of the cluster: the WAL file thresholds of the cluster derive from its file system size (see [WAL](#wal)). |
 
 The role creates nrpe once per target on its primary. PostgreSQL roles replicate
 to standby servers. Checks connect locally as `nagios_nrpe_user`; each
@@ -154,7 +156,8 @@ nagios_pg_ssl_mode: verify-full
 
 ## WAL
 
-The role runs `df` on `nagios_data_dir_mp` and `nagios_wal_dir_mp` to determine the size of their file systems (not the available space, so the thresholds don't change with every file written).
+The role runs `df` on `nagios_data_dir_mp` and `nagios_wal_dir_mp` (and on the `data_dir_mp` and `wal_dir_mp` of every cluster in `nagios_clusters`) to determine the size of their file systems (not the available space, so the thresholds don't change with every file written).
+Every cluster gets thresholds from its own mount points: the role derives `nagios_checks` per cluster with `nagios_data_dir_mp_size` and `nagios_wal_dir_mp_size` set to the sizes of the cluster's mount points (so setting these two in the inventory has no effect; set `nagios_db_size_value` and the like instead).
 WAL thresholds are derived from the number of 16MB WAL files that fit on the WAL mount point.
 
 | Variable | Default | Description |

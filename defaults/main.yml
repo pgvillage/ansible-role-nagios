@@ -16,7 +16,7 @@ nagios_package_state: present
 nagios_packages:
   - nrpe
   - check_postgres
-  - perl-Time-HiRes
+  - perl
 
 # Folder where the custom nrpe scripts and the check_postgres.pl symlinks are deployed
 nagios_scripts_folder: /opt/nagios/nrpe
